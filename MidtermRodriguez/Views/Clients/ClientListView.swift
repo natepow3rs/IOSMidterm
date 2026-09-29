@@ -7,22 +7,35 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ClientListView: View {
 
-    @EnvironmentObject private var store: InvoiceStore
+    @Query(sort: \Client.name) private var allClients: [Client]
+    @Query private var allInvoices: [Invoice]
+    @Environment(\.modelContext) private var modelContext
 
     @State private var searchText = ""
     @State private var isPresentingForm = false
 
     private var displayedClients: [Client] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return store.sortedClients }
+        guard !query.isEmpty else { return allClients }
 
-        return store.sortedClients.filter { client in
+        return allClients.filter { client in
             client.name.localizedCaseInsensitiveContains(query)
                 || client.contactPerson.localizedCaseInsensitiveContains(query)
         }
+    }
+    
+    private func invoiceCount(for clientID: UUID) -> Int {
+        allInvoices.filter { $0.clientID == clientID }.count
+    }
+    
+    private func billedTotal(for clientID: UUID) -> Decimal {
+        allInvoices
+            .filter { $0.clientID == clientID }
+            .reduce(0) { $0 + TotalsCalculator.calculate(for: $1).grandTotal }
     }
 
     var body: some View {
@@ -33,8 +46,8 @@ struct ClientListView: View {
                 } label: {
                     ClientRowView(
                         client: client,
-                        invoiceCount: store.invoices(for: client.id).count,
-                        billedTotal: store.billedTotal(for: client.id)
+                        invoiceCount: invoiceCount(for: client.id),
+                        billedTotal: billedTotal(for: client.id)
                     )
                 }
             }
@@ -76,12 +89,17 @@ struct ClientListView: View {
 
     // MARK: - Actions
 
-    /// Deleting a client also removes that client's invoices, which the
-    /// controller handles.
+    /// Deleting a client also removes that client's invoices via cascade delete.
     private func deleteClients(at offsets: IndexSet) {
-        let ids = offsets.map { displayedClients[$0].id }
-        for id in ids {
-            store.deleteClient(withID: id)
+        let clientsToDelete = offsets.map { displayedClients[$0] }
+        for client in clientsToDelete {
+            // Delete associated invoices first
+            let clientInvoices = allInvoices.filter { $0.clientID == client.id }
+            for invoice in clientInvoices {
+                modelContext.delete(invoice)
+            }
+            // Then delete the client
+            modelContext.delete(client)
         }
     }
 }
@@ -90,5 +108,5 @@ struct ClientListView: View {
     NavigationStack {
         ClientListView()
     }
-    .environmentObject(InvoiceStore.preview)
+    .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }

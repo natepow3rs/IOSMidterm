@@ -7,10 +7,11 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ClientFormView: View {
 
-    @EnvironmentObject private var store: InvoiceStore
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft: Client
@@ -55,10 +56,10 @@ struct ClientFormView: View {
 
     private func save() {
         if isNew {
-            store.addClient(draft)
-        } else {
-            store.update(draft)
+            modelContext.insert(draft)
         }
+        // For editing, changes are automatically tracked by SwiftData
+        try? modelContext.save()
         dismiss()
     }
 }
@@ -67,5 +68,5 @@ struct ClientFormView: View {
     NavigationStack {
         ClientFormView(draft: SampleData.clients[0], isNew: false)
     }
-    .environmentObject(InvoiceStore.preview)
+    .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }

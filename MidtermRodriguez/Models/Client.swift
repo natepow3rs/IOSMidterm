@@ -3,18 +3,24 @@
 //  InvoiceManager
 //
 //  MODEL: a customer that invoices are issued to.
-//  Pure data + validation only. No SwiftUI imports here.
+//  Now a SwiftData model for persistent storage.
 //
 
 import Foundation
+import SwiftData
 
-struct Client: Identifiable, Codable, Hashable {
+@Model
+final class Client {
 
-    let id: UUID
+    var id: UUID
     var name: String
     var contactPerson: String
     var email: String
     var address: String
+    
+    // Relationship to invoices (optional, for bidirectional relationship)
+    @Relationship(deleteRule: .cascade, inverse: \Invoice.client)
+    var invoices: [Invoice]?
 
     init(
         id: UUID = UUID(),

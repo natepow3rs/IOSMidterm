@@ -3,27 +3,38 @@
 //  InvoiceManager
 //
 //  MODEL: a billing document issued to one client.
+//  Now a SwiftData model for persistent storage.
 //  Money arithmetic lives in TotalsCalculator, not here.
 //
 
 import Foundation
+import SwiftData
 
-struct Invoice: Identifiable, Codable, Hashable {
+@Model
+final class Invoice {
 
-    let id: UUID
+    var id: UUID
     var number: String
-    var clientID: Client.ID
     var issueDate: Date
     var dueDate: Date
-    var status: InvoiceStatus
+    var statusRawValue: String  // Store InvoiceStatus as raw value
     var vatRate: Decimal
-    var lineItems: [LineItem]
     var notes: String
+    
+    // Store clientID temporarily for initialization
+    private var temporaryClientID: UUID?
+    
+    // Relationship to client
+    var client: Client?
+    
+    // Relationship to line items
+    @Relationship(deleteRule: .cascade)
+    var lineItems: [LineItem]
 
     init(
         id: UUID = UUID(),
         number: String,
-        clientID: Client.ID,
+        clientID: UUID,
         issueDate: Date = Date(),
         dueDate: Date = Date(),
         status: InvoiceStatus = .draft,
@@ -33,13 +44,29 @@ struct Invoice: Identifiable, Codable, Hashable {
     ) {
         self.id = id
         self.number = number
-        self.clientID = clientID
+        self.temporaryClientID = clientID
+        self.client = nil  // Will be set later through relationship
         self.issueDate = issueDate
         self.dueDate = dueDate
-        self.status = status
+        self.statusRawValue = status.rawValue
         self.vatRate = vatRate
         self.lineItems = lineItems
         self.notes = notes
+    }
+    
+    // Computed property for status
+    var status: InvoiceStatus {
+        get { InvoiceStatus(rawValue: statusRawValue) ?? .draft }
+        set { statusRawValue = newValue.rawValue }
+    }
+    
+    // Helper to get/set clientID for backward compatibility
+    var clientID: UUID {
+        get { client?.id ?? temporaryClientID ?? UUID() }
+        set { 
+            temporaryClientID = newValue
+            // The actual client relationship should be set separately via the client property
+        }
     }
 
     /// True when payment is past due and the invoice has not been settled.

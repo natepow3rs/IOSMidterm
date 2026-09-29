@@ -6,20 +6,18 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct InvoiceManagerApp: App {
 
-    /// The one and only instance of the controller for the whole app.
-    @StateObject private var store = InvoiceStore(
-        clients: SampleData.clients,
-        invoices: SampleData.invoices
-    )
-
     var body: some Scene {
         WindowGroup {
             RootTabView()
-                .environmentObject(store)
         }
+        // SwiftData: create the persistent container for Invoice, Client, and LineItem models.
+        // This makes a ModelContext available to every view through the
+        // environment, enabling persistent storage for the invoice system.
+        .modelContainer(for: [Invoice.self, Client.self, LineItem.self])
     }
 }

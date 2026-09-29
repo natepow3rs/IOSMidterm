@@ -5,22 +5,29 @@
 //  SCREEN 4: the full invoice — client, dates, line items, computed
 //  totals, and the controls that change its status.
 //
-//  The view holds only the invoice's ID and reads the invoice back out
-//  of the controller, so edits made elsewhere show up immediately.
+//  The view holds only the invoice's ID and reads the invoice back from
+//  SwiftData, so edits made elsewhere show up immediately.
 //
 
 import SwiftUI
+import SwiftData
 
 struct InvoiceDetailView: View {
 
-    @EnvironmentObject private var store: InvoiceStore
+    @Query private var allInvoices: [Invoice]
+    @Query private var allClients: [Client]
+    @Environment(\.modelContext) private var modelContext
 
     let invoiceID: Invoice.ID
 
     @State private var isPresentingEditor = false
 
     private var invoice: Invoice? {
-        store.invoice(withID: invoiceID)
+        allInvoices.first { $0.id == invoiceID }
+    }
+    
+    private func client(withID id: UUID) -> Client? {
+        allClients.first { $0.id == id }
     }
 
     var body: some View {
@@ -74,7 +81,7 @@ struct InvoiceDetailView: View {
             }
 
             Section("Billed to") {
-                if let client = store.client(withID: invoice.clientID) {
+                if let client = client(withID: invoice.clientID) {
                     NavigationLink {
                         ClientDetailView(clientID: client.id)
                     } label: {
@@ -135,11 +142,14 @@ struct InvoiceDetailView: View {
 
     // MARK: - Bindings
 
-    /// Writes status changes straight back through the controller.
+    /// Writes status changes directly to the SwiftData model.
     private func statusBinding(for invoice: Invoice) -> Binding<InvoiceStatus> {
         Binding(
             get: { invoice.status },
-            set: { store.setStatus($0, forInvoiceWithID: invoice.id) }
+            set: { newStatus in
+                invoice.status = newStatus
+                try? modelContext.save()
+            }
         )
     }
 }
@@ -148,5 +158,5 @@ struct InvoiceDetailView: View {
     NavigationStack {
         InvoiceDetailView(invoiceID: SampleData.invoices[0].id)
     }
-    .environmentObject(InvoiceStore.preview)
+    .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }

@@ -3,16 +3,22 @@
 //  InvoiceManager
 //
 //  MODEL: a single billable row inside an invoice.
+//  Now a SwiftData model for persistent storage as part of Invoice.
 //
 
 import Foundation
+import SwiftData
 
-struct LineItem: Identifiable, Codable, Hashable {
+@Model
+final class LineItem {
 
-    let id: UUID
+    var id: UUID
     var details: String
     var quantity: Decimal
     var unitPrice: Decimal
+    
+    // Back-reference to the invoice (optional, managed by SwiftData)
+    var invoice: Invoice?
 
     init(
         id: UUID = UUID(),

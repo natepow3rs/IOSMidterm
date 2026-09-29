@@ -7,21 +7,28 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ClientDetailView: View {
 
-    @EnvironmentObject private var store: InvoiceStore
+    @Query private var allClients: [Client]
+    @Query private var allInvoices: [Invoice]
 
     let clientID: Client.ID
 
     @State private var isPresentingEditor = false
 
     private var client: Client? {
-        store.client(withID: clientID)
+        allClients.first { $0.id == clientID }
     }
 
     private var clientInvoices: [Invoice] {
-        store.invoices(for: clientID)
+        allInvoices.filter { $0.clientID == clientID }
+            .sorted { $0.issueDate > $1.issueDate }
+    }
+    
+    private var billedTotal: Decimal {
+        clientInvoices.reduce(0) { $0 + TotalsCalculator.calculate(for: $1).grandTotal }
     }
 
     var body: some View {
@@ -69,7 +76,7 @@ struct ClientDetailView: View {
             }
 
             Section("Billing summary") {
-                LabeledContent("Total billed", value: store.billedTotal(for: clientID).currencyText)
+                LabeledContent("Total billed", value: billedTotal.currencyText)
                 LabeledContent("Invoices", value: "\(clientInvoices.count)")
                 LabeledContent(
                     "Unpaid",
@@ -100,5 +107,5 @@ struct ClientDetailView: View {
     NavigationStack {
         ClientDetailView(clientID: SampleData.clients[0].id)
     }
-    .environmentObject(InvoiceStore.preview)
+    .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }

@@ -90,10 +90,3 @@ enum SampleData {
     }
 }
 
-extension InvoiceStore {
-
-    /// A ready-made store for Xcode previews.
-    static var preview: InvoiceStore {
-        InvoiceStore(clients: SampleData.clients, invoices: SampleData.invoices)
-    }
-}

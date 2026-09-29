@@ -7,10 +7,12 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct OverviewView: View {
 
-    @EnvironmentObject private var store: InvoiceStore
+    @Query(sort: \Invoice.issueDate, order: .reverse) private var allInvoices: [Invoice]
+    @Query private var allClients: [Client]
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -29,6 +31,36 @@ struct OverviewView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Overview")
     }
+    
+    // MARK: - Computed Properties
+    
+    private var outstandingTotal: Decimal {
+        allInvoices
+            .filter { $0.status.isOutstanding }
+            .reduce(0) { $0 + TotalsCalculator.calculate(for: $1).grandTotal }
+    }
+    
+    private var collectedTotal: Decimal {
+        allInvoices
+            .filter { $0.status == .paid }
+            .reduce(0) { $0 + TotalsCalculator.calculate(for: $1).grandTotal }
+    }
+    
+    private var overdueInvoices: [Invoice] {
+        allInvoices.filter { $0.isOverdue() }
+    }
+    
+    private var recentInvoices: [Invoice] {
+        Array(allInvoices.prefix(5))
+    }
+    
+    private func count(of status: InvoiceStatus) -> Int {
+        allInvoices.filter { $0.status == status }.count
+    }
+    
+    private func clientName(for clientID: UUID) -> String {
+        allClients.first { $0.id == clientID }?.name ?? "Unknown"
+    }
 
     // MARK: - Sections
 
@@ -36,25 +68,25 @@ struct OverviewView: View {
         LazyVGrid(columns: columns, spacing: 12) {
             SummaryTileView(
                 title: "Outstanding",
-                value: store.outstandingTotal.currencyText,
+                value: outstandingTotal.currencyText,
                 symbolName: "hourglass",
                 tint: .orange
             )
             SummaryTileView(
                 title: "Collected",
-                value: store.collectedTotal.currencyText,
+                value: collectedTotal.currencyText,
                 symbolName: "checkmark.seal",
                 tint: .green
             )
             SummaryTileView(
                 title: "Active clients",
-                value: "\(store.clients.count)",
+                value: "\(allClients.count)",
                 symbolName: "person.2",
                 tint: .blue
             )
             SummaryTileView(
                 title: "Overdue",
-                value: "\(store.overdueInvoices.count)",
+                value: "\(overdueInvoices.count)",
                 symbolName: "exclamationmark.triangle",
                 tint: .red
             )
@@ -71,7 +103,7 @@ struct OverviewView: View {
                     HStack {
                         StatusBadgeView(status: status)
                         Spacer()
-                        Text("\(store.count(of: status))")
+                        Text("\(count(of: status))")
                             .font(.subheadline.weight(.semibold))
                             .monospacedDigit()
                     }
@@ -92,7 +124,7 @@ struct OverviewView: View {
             Text("Recent invoices")
                 .font(.headline)
 
-            if store.recentInvoices.isEmpty {
+            if recentInvoices.isEmpty {
                 Text("No invoices yet. Create one from the Invoices tab.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -101,20 +133,20 @@ struct OverviewView: View {
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
             } else {
                 VStack(spacing: 0) {
-                    ForEach(store.recentInvoices) { invoice in
+                    ForEach(recentInvoices) { invoice in
                         NavigationLink {
                             InvoiceDetailView(invoiceID: invoice.id)
                         } label: {
                             InvoiceRowView(
                                 invoice: invoice,
-                                clientName: store.clientName(for: invoice.clientID)
+                                clientName: clientName(for: invoice.clientID)
                             )
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
 
-                        if invoice.id != store.recentInvoices.last?.id {
+                        if invoice.id != recentInvoices.last?.id {
                             Divider().padding(.leading, 14)
                         }
                     }
@@ -129,5 +161,5 @@ struct OverviewView: View {
     NavigationStack {
         OverviewView()
     }
-    .environmentObject(InvoiceStore.preview)
+    .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }

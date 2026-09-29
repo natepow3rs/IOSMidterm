@@ -7,26 +7,33 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct InvoiceListView: View {
 
-    @EnvironmentObject private var store: InvoiceStore
+    @Query(sort: \Invoice.issueDate, order: .reverse) private var allInvoices: [Invoice]
+    @Query private var allClients: [Client]
+    @Environment(\.modelContext) private var modelContext
 
     @State private var selectedStatus: InvoiceStatus?
     @State private var searchText = ""
     @State private var isPresentingForm = false
 
     /// Filtering happens here, in the view, because it is presentation
-    /// state. The underlying data still comes from the controller.
+    /// state. The underlying data still comes from SwiftData.
     private var displayedInvoices: [Invoice] {
-        let filtered = store.invoices(with: selectedStatus)
+        let filtered = selectedStatus == nil ? allInvoices : allInvoices.filter { $0.status == selectedStatus }
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return filtered }
 
         return filtered.filter { invoice in
             invoice.number.localizedCaseInsensitiveContains(query)
-                || store.clientName(for: invoice.clientID).localizedCaseInsensitiveContains(query)
+                || clientName(for: invoice.clientID).localizedCaseInsensitiveContains(query)
         }
+    }
+    
+    private func clientName(for clientID: UUID) -> String {
+        allClients.first { $0.id == clientID }?.name ?? "Unknown"
     }
 
     var body: some View {
@@ -50,7 +57,7 @@ struct InvoiceListView: View {
                     } label: {
                         InvoiceRowView(
                             invoice: invoice,
-                            clientName: store.clientName(for: invoice.clientID)
+                            clientName: clientName(for: invoice.clientID)
                         )
                     }
                 }
@@ -69,12 +76,12 @@ struct InvoiceListView: View {
                 } label: {
                     Label("New invoice", systemImage: "plus")
                 }
-                .disabled(store.clients.isEmpty)
+                .disabled(allClients.isEmpty)
             }
         }
         .sheet(isPresented: $isPresentingForm) {
             NavigationStack {
-                InvoiceFormView(draft: store.makeDraftInvoice(), isNew: true)
+                InvoiceFormView(draft: makeDraftInvoice(), isNew: true)
             }
         }
         .overlay {
@@ -98,10 +105,10 @@ struct InvoiceListView: View {
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
 
-            Text(store.clients.isEmpty ? "Add a client first" : "No invoices match this filter")
+            Text(allClients.isEmpty ? "Add a client first" : "No invoices match this filter")
                 .font(.headline)
 
-            Text(store.clients.isEmpty
+            Text(allClients.isEmpty
                  ? "Invoices are always issued to a client, so start on the Clients tab."
                  : "Try a different status or clear the search.")
                 .font(.footnote)
@@ -110,15 +117,32 @@ struct InvoiceListView: View {
         }
         .padding(32)
     }
+    
+    // MARK: - Helper Methods
+    
+    private func makeDraftInvoice() -> Invoice {
+        let nextNumber = "INV-\(String(format: "%04d", allInvoices.count + 1))"
+        let firstClient = allClients.first
+        return Invoice(
+            number: nextNumber,
+            clientID: firstClient?.id ?? UUID(),
+            issueDate: Date(),
+            dueDate: Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date(),
+            status: .draft,
+            vatRate: AppConfiguration.defaultVATRate,
+            lineItems: [],
+            notes: ""
+        )
+    }
 
     // MARK: - Actions
 
     /// Offsets refer to the *filtered* array, so they are mapped back to
     /// identifiers before anything is removed.
     private func deleteInvoices(at offsets: IndexSet) {
-        let ids = offsets.map { displayedInvoices[$0].id }
-        for id in ids {
-            store.deleteInvoice(withID: id)
+        let invoicesToDelete = offsets.map { displayedInvoices[$0] }
+        for invoice in invoicesToDelete {
+            modelContext.delete(invoice)
         }
     }
 }
@@ -127,5 +151,5 @@ struct InvoiceListView: View {
     NavigationStack {
         InvoiceListView()
     }
-    .environmentObject(InvoiceStore.preview)
+    .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }

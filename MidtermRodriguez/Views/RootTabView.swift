@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct RootTabView: View {
 
@@ -38,5 +39,5 @@ struct RootTabView: View {
 
 #Preview {
     RootTabView()
-        .environmentObject(InvoiceStore.preview)
+        .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }

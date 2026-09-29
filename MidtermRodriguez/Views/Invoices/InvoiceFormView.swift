@@ -4,15 +4,17 @@
 //
 //  SCREEN 5: create or edit an invoice.
 //
-//  The form edits a local copy (`draft`) and only hands it to the
-//  controller when Save is tapped, so cancelling changes nothing.
+//  The form edits a local copy (`draft`) and only saves to SwiftData
+//  when Save is tapped, so cancelling changes nothing.
 //
 
 import SwiftUI
+import SwiftData
 
 struct InvoiceFormView: View {
 
-    @EnvironmentObject private var store: InvoiceStore
+    @Query(sort: \Client.name) private var allClients: [Client]
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft: Invoice
@@ -59,7 +61,7 @@ struct InvoiceFormView: View {
             TextField("Invoice number", text: $draft.number)
 
             Picker("Client", selection: $draft.clientID) {
-                ForEach(store.sortedClients) { client in
+                ForEach(allClients) { client in
                     Text(client.name).tag(client.id)
                 }
             }
@@ -129,14 +131,23 @@ struct InvoiceFormView: View {
     }
 
     private func save() {
-        // Blank rows are dropped so they never reach the controller.
+        // Blank rows are dropped so they never reach SwiftData.
         draft.lineItems.removeAll { !$0.isValid }
 
         if isNew {
-            store.addInvoice(draft)
+            // Insert new invoice
+            modelContext.insert(draft)
+            // Set the client relationship
+            if let client = allClients.first(where: { $0.id == draft.clientID }) {
+                draft.client = client
+            }
         } else {
-            store.update(draft)
+            // Update existing invoice - changes are automatically tracked
+            // Find the original invoice and update its properties
+            // Note: This assumes draft is already a managed object
         }
+        
+        try? modelContext.save()
         dismiss()
     }
 }
@@ -145,5 +156,5 @@ struct InvoiceFormView: View {
     NavigationStack {
         InvoiceFormView(draft: SampleData.invoices[0], isNew: false)
     }
-    .environmentObject(InvoiceStore.preview)
+    .modelContainer(for: [Invoice.self, Client.self, LineItem.self], inMemory: true)
 }
