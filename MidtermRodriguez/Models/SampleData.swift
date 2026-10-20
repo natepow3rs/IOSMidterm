@@ -23,6 +23,7 @@ enum SampleData {
             name: "Santex Building Company",
             contactPerson: "Javier Santos",
             email: "javier@santexbuilding.com",
+            phone: "+63 917 555 0142",
             address: "142 Aurora Blvd, Quezon City"
         ),
         Client(
@@ -30,6 +31,7 @@ enum SampleData {
             name: "Northwind Logistics",
             contactPerson: "Mia Delgado",
             email: "accounts@northwindlogistics.ph",
+            phone: "(02) 8555 0188",
             address: "8 Bagtikan St, Makati City"
         ),
         Client(
@@ -37,6 +39,7 @@ enum SampleData {
             name: "Bayanihan Coffee Roasters",
             contactPerson: "Paolo Cruz",
             email: "paolo@bayanihanroasters.ph",
+            phone: "+63 998 555 0127",
             address: "27 Real St, Bacoor, Cavite"
         )
     ]

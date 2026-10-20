@@ -14,6 +14,7 @@ struct Client: Identifiable, Codable, Hashable {
     var name: String
     var contactPerson: String
     var email: String
+    var phone: String
     var address: String
 
     init(
@@ -21,12 +22,14 @@ struct Client: Identifiable, Codable, Hashable {
         name: String,
         contactPerson: String = "",
         email: String = "",
+        phone: String = "",
         address: String = ""
     ) {
         self.id = id
         self.name = name
         self.contactPerson = contactPerson
         self.email = email
+        self.phone = phone
         self.address = address
     }
 

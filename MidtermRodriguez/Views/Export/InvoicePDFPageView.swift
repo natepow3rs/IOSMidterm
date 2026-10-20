@@ -238,7 +238,7 @@ struct InvoicePDFPageView: View {
     // MARK: - Helpers
 
     private var clientLines: [String] {
-        [client.contactPerson, client.email, client.address].filter { !$0.isEmpty }
+        [client.contactPerson, client.email, client.phone, client.address].filter { !$0.isEmpty }
     }
 
     private var footerMessage: String {

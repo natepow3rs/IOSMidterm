@@ -3,7 +3,7 @@
 //  InvoiceManager
 //
 //  SCREEN 7: one client. A header with what they owe and quick actions
-//  (new invoice, email), then contact details, billing totals and every
+//  (new invoice, call, email), then contact details, billing totals and every
 //  invoice issued to them.
 //
 
@@ -88,6 +88,9 @@ struct ClientDetailView: View {
                     if !client.email.isEmpty {
                         LabeledContent("Email", value: client.email)
                     }
+                    if !client.phone.isEmpty {
+                        LabeledContent("Phone", value: client.phone)
+                    }
                     if !client.address.isEmpty {
                         LabeledContent("Address", value: client.address)
                     }
@@ -152,15 +155,26 @@ struct ClientDetailView: View {
                 }
                 .buttonStyle(.borderedProminent)
 
-                if let emailURL = emailURL(for: client) {
-                    Link(destination: emailURL) {
-                        Label("Email", systemImage: "envelope")
-                            .frame(maxWidth: .infinity)
+                if let phoneURL = phoneURL(for: client) {
+                    Link(destination: phoneURL) {
+                        Label("Call", systemImage: "phone.fill")
+                            .labelStyle(.iconOnly)
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("Call \(client.name)")
+                }
+
+                if let emailURL = emailURL(for: client) {
+                    Link(destination: emailURL) {
+                        Label("Email", systemImage: "envelope.fill")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Email \(client.name)")
                 }
             }
             .controlSize(.large)
+            .labelStyle(.titleAndIcon)
         }
     }
 
@@ -182,7 +196,15 @@ struct ClientDetailView: View {
     // MARK: - Helpers
 
     private func hasContactDetails(_ client: Client) -> Bool {
-        !client.contactPerson.isEmpty || !client.email.isEmpty || !client.address.isEmpty
+        !client.contactPerson.isEmpty || !client.email.isEmpty
+            || !client.phone.isEmpty || !client.address.isEmpty
+    }
+
+    /// A tel: link using only the digits and a leading +, e.g. "+639171234567".
+    private func phoneURL(for client: Client) -> URL? {
+        let digits = client.phone.filter { $0.isNumber || $0 == "+" }
+        guard !digits.isEmpty else { return nil }
+        return URL(string: "tel:\(digits)")
     }
 
     private func emailURL(for client: Client) -> URL? {

@@ -17,6 +17,8 @@ final class ClientRecord {
     var name: String
     var contactPerson: String
     var email: String
+    /// Has a default so databases saved before this field existed still open.
+    var phone: String = ""
     var address: String
 
     init(_ client: Client) {
@@ -24,6 +26,7 @@ final class ClientRecord {
         self.name = client.name
         self.contactPerson = client.contactPerson
         self.email = client.email
+        self.phone = client.phone
         self.address = client.address
     }
 
@@ -32,6 +35,7 @@ final class ClientRecord {
         name = client.name
         contactPerson = client.contactPerson
         email = client.email
+        phone = client.phone
         address = client.address
     }
 
@@ -42,6 +46,7 @@ final class ClientRecord {
             name: name,
             contactPerson: contactPerson,
             email: email,
+            phone: phone,
             address: address
         )
     }

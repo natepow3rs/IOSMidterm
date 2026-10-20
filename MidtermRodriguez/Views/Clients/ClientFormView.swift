@@ -34,6 +34,10 @@ struct ClientFormView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
+                TextField("Phone", text: $draft.phone)
+                    .keyboardType(.phonePad)
+                    .textContentType(.telephoneNumber)
+
                 TextField("Address", text: $draft.address, axis: .vertical)
                     .lineLimit(2...4)
             }

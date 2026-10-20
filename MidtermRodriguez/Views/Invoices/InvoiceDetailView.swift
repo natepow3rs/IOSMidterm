@@ -239,6 +239,7 @@ struct InvoiceDetailView: View {
             }
 
             nextStepButton(for: invoice)
+                .labelStyle(.titleAndIcon)
         }
     }
 
