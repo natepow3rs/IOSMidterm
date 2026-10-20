@@ -3,6 +3,8 @@
 //  InvoiceManager
 //
 //  Reusable component: one invoice summarised as a list row.
+//  Leads with the client (how people think about who owes them),
+//  then the invoice number and when it's due.
 //  Used by the invoice list, the client detail screen and the overview.
 //
 
@@ -13,49 +15,57 @@ struct InvoiceRowView: View {
     let invoice: Invoice
     let clientName: String
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(invoice.number)
-                    .font(.subheadline.weight(.semibold))
+    /// Hide the client name when the row is already on that client's screen.
+    var showsClientName: Bool = true
 
-                Text(clientName)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+    private var isOverdue: Bool { invoice.isOverdue() }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(showsClientName ? clientName : invoice.number)
+                    .font(.body.weight(.semibold))
                     .lineLimit(1)
 
-                HStack(spacing: 6) {
-                    StatusBadgeView(status: invoice.status)
-
-                    if invoice.isOverdue() {
-                        Text("Overdue")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.red)
-                    }
-                }
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(isOverdue ? Theme.overdue : .secondary)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 5) {
                 Text(TotalsCalculator.total(of: invoice).currencyText)
-                    .font(.subheadline.weight(.semibold))
+                    .font(Theme.rowAmountFont)
                     .monospacedDigit()
 
-                Text("Due \(invoice.dueDate.shortDateText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                StatusBadgeView(invoice: invoice)
             }
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var subtitle: String {
+        showsClientName
+            ? "\(invoice.number), \(invoice.dueDescription().lowercasedFirstLetter)"
+            : invoice.dueDescription()
+    }
+}
+
+private extension String {
+
+    /// "Due in 5 days" becomes "due in 5 days" so it reads well mid-sentence.
+    var lowercasedFirstLetter: String {
+        prefix(1).lowercased() + dropFirst()
     }
 }
 
 #Preview {
     List {
-        InvoiceRowView(
-            invoice: SampleData.invoices[0],
-            clientName: SampleData.clients[0].name
-        )
+        ForEach(SampleData.invoices) { invoice in
+            InvoiceRowView(invoice: invoice, clientName: "Santex Building Company")
+        }
     }
 }

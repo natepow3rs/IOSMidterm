@@ -42,9 +42,11 @@ struct Invoice: Identifiable, Codable, Hashable {
         self.notes = notes
     }
 
-    /// True when payment is past due and the invoice has not been settled.
+    /// True when the invoice was sent, is still unpaid, and its due date
+    /// has passed. Drafts are never overdue because the client hasn't
+    /// received them yet.
     func isOverdue(asOf date: Date = Date()) -> Bool {
-        status.isOutstanding && dueDate < date
+        status == .sent && daysUntilDue(asOf: date) < 0
     }
 
     /// An invoice is only ready to save once it has a number and at least

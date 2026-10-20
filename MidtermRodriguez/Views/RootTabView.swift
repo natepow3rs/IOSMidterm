@@ -10,6 +10,8 @@ import SwiftUI
 
 struct RootTabView: View {
 
+    @EnvironmentObject private var store: InvoiceStore
+
     var body: some View {
         TabView {
             NavigationStack {
@@ -32,6 +34,31 @@ struct RootTabView: View {
             .tabItem {
                 Label("Clients", systemImage: "person.2")
             }
+
+            NavigationStack {
+                ReportsView()
+            }
+            .tabItem {
+                Label("Reports", systemImage: "chart.bar.xaxis")
+            }
+
+            NavigationStack {
+                SettingsView()
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gearshape")
+            }
+        }
+        .alert(
+            "Something went wrong",
+            isPresented: Binding(
+                get: { store.saveErrorMessage != nil },
+                set: { if !$0 { store.saveErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(store.saveErrorMessage ?? "")
         }
     }
 }

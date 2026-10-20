@@ -2,8 +2,8 @@
 //  InvoiceListView.swift
 //  InvoiceManager
 //
-//  SCREEN 3: every invoice, with a status filter, search,
-//  swipe-to-delete and a button that opens the create form.
+//  SCREEN 3: every invoice, with filter chips (including Overdue),
+//  search, swipe to mark as paid, and swipe to delete with confirmation.
 //
 
 import SwiftUI
@@ -12,14 +12,15 @@ struct InvoiceListView: View {
 
     @EnvironmentObject private var store: InvoiceStore
 
-    @State private var selectedStatus: InvoiceStatus?
+    @State private var filter: InvoiceFilter = .all
     @State private var searchText = ""
-    @State private var isPresentingForm = false
+    @State private var invoiceDraft: Invoice?
+    @State private var invoicePendingDeletion: Invoice?
 
-    /// Filtering happens here, in the view, because it is presentation
-    /// state. The underlying data still comes from the controller.
+    /// Searching happens here, in the view, because the search text is
+    /// presentation state. The filtered data still comes from the controller.
     private var displayedInvoices: [Invoice] {
-        let filtered = store.invoices(with: selectedStatus)
+        let filtered = store.invoices(matching: filter)
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return filtered }
 
@@ -32,49 +33,49 @@ struct InvoiceListView: View {
     var body: some View {
         List {
             Section {
-                Picker("Status", selection: $selectedStatus) {
-                    Text("All").tag(InvoiceStatus?.none)
-                    ForEach(InvoiceStatus.allCases) { status in
-                        Text(status.displayName).tag(InvoiceStatus?.some(status))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                filterChips
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
             }
 
-            Section {
-                ForEach(displayedInvoices) { invoice in
-                    NavigationLink {
-                        InvoiceDetailView(invoiceID: invoice.id)
-                    } label: {
-                        InvoiceRowView(
-                            invoice: invoice,
-                            clientName: store.clientName(for: invoice.clientID)
-                        )
+            if !displayedInvoices.isEmpty {
+                Section {
+                    ForEach(displayedInvoices) { invoice in
+                        NavigationLink {
+                            InvoiceDetailView(invoiceID: invoice.id)
+                        } label: {
+                            InvoiceRowView(
+                                invoice: invoice,
+                                clientName: store.clientName(for: invoice.clientID)
+                            )
+                        }
+                        .swipeActions(edge: .leading) {
+                            statusSwipeAction(for: invoice)
+                        }
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                invoicePendingDeletion = invoice
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
+                } header: {
+                    Text(headerText)
                 }
-                .onDelete(perform: deleteInvoices)
-            } header: {
-                Text(headerText)
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $searchText, prompt: "Search number or client")
+        .searchable(text: $searchText, prompt: "Search by client or invoice number")
         .navigationTitle("Invoices")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    isPresentingForm = true
+                    invoiceDraft = store.makeDraftInvoice()
                 } label: {
                     Label("New invoice", systemImage: "plus")
                 }
                 .disabled(store.clients.isEmpty)
-            }
-        }
-        .sheet(isPresented: $isPresentingForm) {
-            NavigationStack {
-                InvoiceFormView(draft: store.makeDraftInvoice(), isNew: true)
             }
         }
         .overlay {
@@ -82,43 +83,116 @@ struct InvoiceListView: View {
                 emptyState
             }
         }
+        .sheet(item: $invoiceDraft) { draft in
+            NavigationStack {
+                InvoiceFormView(draft: draft, isNew: true)
+            }
+        }
+        .confirmationDialog(
+            "Delete this invoice?",
+            isPresented: Binding(
+                get: { invoicePendingDeletion != nil },
+                set: { if !$0 { invoicePendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: invoicePendingDeletion
+        ) { invoice in
+            Button("Delete \(invoice.number)", role: .destructive) {
+                store.deleteInvoice(withID: invoice.id)
+            }
+        } message: { invoice in
+            Text("\(invoice.number) for \(store.clientName(for: invoice.clientID)) will be permanently removed.")
+        }
+        .sensoryFeedback(.success, trigger: store.collectedTotal)
     }
 
     // MARK: - Subviews
 
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(InvoiceFilter.allCases) { option in
+                    FilterChipView(
+                        title: option.title,
+                        count: store.count(matching: option),
+                        isSelected: filter == option,
+                        tint: option == .overdue ? Theme.overdue : Theme.brand
+                    ) {
+                        withAnimation(.snappy) { filter = option }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    /// Leading swipe moves the invoice one step forward: send a draft,
+    /// or record payment for a sent invoice.
+    @ViewBuilder
+    private func statusSwipeAction(for invoice: Invoice) -> some View {
+        switch invoice.status {
+        case .draft:
+            Button {
+                store.setStatus(.sent, forInvoiceWithID: invoice.id)
+            } label: {
+                Label("Mark as sent", systemImage: "paperplane")
+            }
+            .tint(Theme.sent)
+        case .sent:
+            Button {
+                store.setStatus(.paid, forInvoiceWithID: invoice.id)
+            } label: {
+                Label("Mark as paid", systemImage: "checkmark.seal")
+            }
+            .tint(Theme.brand)
+        case .paid:
+            EmptyView()
+        }
+    }
+
     private var headerText: String {
         let count = displayedInvoices.count
         let total = TotalsCalculator.total(of: displayedInvoices)
-        return "\(count) invoice\(count == 1 ? "" : "s") · \(total.currencyText)"
+        return "\(count) invoice\(count == 1 ? "" : "s"), \(total.currencyText)"
     }
 
+    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-
-            Text(store.clients.isEmpty ? "Add a client first" : "No invoices match this filter")
-                .font(.headline)
-
-            Text(store.clients.isEmpty
-                 ? "Invoices are always issued to a client, so start on the Clients tab."
-                 : "Try a different status or clear the search.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        if store.clients.isEmpty {
+            ContentUnavailableView(
+                "Add a client first",
+                systemImage: "person.crop.circle.badge.plus",
+                description: Text("Invoices are always issued to a client. Add one on the Clients tab.")
+            )
+        } else if !searchText.isEmpty {
+            ContentUnavailableView.search(text: searchText)
+        } else if filter == .all {
+            ContentUnavailableView {
+                Label("No invoices yet", systemImage: "doc.text")
+            } description: {
+                Text("Create your first invoice to start tracking what clients owe you.")
+            } actions: {
+                Button("New invoice") { invoiceDraft = store.makeDraftInvoice() }
+                    .buttonStyle(.borderedProminent)
+            }
+        } else {
+            ContentUnavailableView(
+                emptyTitle(for: filter),
+                systemImage: filter == .overdue ? "checkmark.circle" : "tray",
+                description: Text(filter == .overdue
+                                  ? "Every sent invoice is still within its due date."
+                                  : "Invoices will show here when they match this filter.")
+            )
         }
-        .padding(32)
     }
 
-    // MARK: - Actions
-
-    /// Offsets refer to the *filtered* array, so they are mapped back to
-    /// identifiers before anything is removed.
-    private func deleteInvoices(at offsets: IndexSet) {
-        let ids = offsets.map { displayedInvoices[$0].id }
-        for id in ids {
-            store.deleteInvoice(withID: id)
+    private func emptyTitle(for filter: InvoiceFilter) -> String {
+        switch filter {
+        case .all:     return "No invoices yet"
+        case .draft:   return "No drafts"
+        case .sent:    return "Nothing awaiting payment"
+        case .overdue: return "Nothing overdue"
+        case .paid:    return "No paid invoices yet"
         }
     }
 }

@@ -2,8 +2,9 @@
 //  ClientListView.swift
 //  InvoiceManager
 //
-//  SCREEN 6: all clients, sorted by name, with search and a button
-//  that opens the client form.
+//  SCREEN 6: all clients, sorted by name, showing what each one owes.
+//  Search, add, and swipe to delete. Deleting asks first, because it
+//  also removes that client's invoices.
 //
 
 import SwiftUI
@@ -14,6 +15,7 @@ struct ClientListView: View {
 
     @State private var searchText = ""
     @State private var isPresentingForm = false
+    @State private var clientPendingDeletion: Client?
 
     private var displayedClients: [Client] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -34,11 +36,18 @@ struct ClientListView: View {
                     ClientRowView(
                         client: client,
                         invoiceCount: store.invoices(for: client.id).count,
-                        billedTotal: store.billedTotal(for: client.id)
+                        amountOwed: store.receivableTotal(for: client.id),
+                        hasOverdue: store.hasOverdueInvoices(for: client.id)
                     )
                 }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        clientPendingDeletion = client
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
-            .onDelete(perform: deleteClients)
         }
         .listStyle(.insetGrouped)
         .searchable(text: $searchText, prompt: "Search clients")
@@ -59,30 +68,48 @@ struct ClientListView: View {
         }
         .overlay {
             if displayedClients.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "person.crop.circle.badge.plus")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    Text("No clients yet")
-                        .font(.headline)
-                    Text("Tap + to add the first one.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(32)
+                emptyState
             }
+        }
+        .confirmationDialog(
+            "Delete this client?",
+            isPresented: Binding(
+                get: { clientPendingDeletion != nil },
+                set: { if !$0 { clientPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: clientPendingDeletion
+        ) { client in
+            Button("Delete \(client.name)", role: .destructive) {
+                store.deleteClient(withID: client.id)
+            }
+        } message: { client in
+            Text(deletionMessage(for: client))
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Subviews
 
-    /// Deleting a client also removes that client's invoices, which the
-    /// controller handles.
-    private func deleteClients(at offsets: IndexSet) {
-        let ids = offsets.map { displayedClients[$0].id }
-        for id in ids {
-            store.deleteClient(withID: id)
+    @ViewBuilder
+    private var emptyState: some View {
+        if searchText.isEmpty {
+            ContentUnavailableView {
+                Label("No clients yet", systemImage: "person.2")
+            } description: {
+                Text("Add the businesses you bill so you can start invoicing them.")
+            } actions: {
+                Button("Add a client") { isPresentingForm = true }
+                    .buttonStyle(.borderedProminent)
+            }
+        } else {
+            ContentUnavailableView.search(text: searchText)
         }
+    }
+
+    private func deletionMessage(for client: Client) -> String {
+        let count = store.invoices(for: client.id).count
+        guard count > 0 else { return "\(client.name) will be permanently removed." }
+        return "\(client.name) and their \(count) invoice\(count == 1 ? "" : "s") will be permanently removed."
     }
 }
 

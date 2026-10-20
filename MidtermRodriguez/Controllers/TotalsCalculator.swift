@@ -34,6 +34,16 @@ enum TotalsCalculator {
         invoices.reduce(Decimal.zero) { $0 + total(of: $1) }
     }
 
+    /// Combined amount of a group of payments.
+    static func sum(of payments: [Payment]) -> Decimal {
+        payments.reduce(Decimal.zero) { $0 + $1.amount }
+    }
+
+    /// What is still owed on an invoice after its payments. Never negative.
+    static func balanceDue(of invoice: Invoice, payments: [Payment]) -> Decimal {
+        max(Decimal.zero, total(of: invoice) - sum(of: payments))
+    }
+
     /// Commercial rounding to a fixed number of decimal places.
     static func rounded(_ value: Decimal, scale: Int = 2) -> Decimal {
         var input = value

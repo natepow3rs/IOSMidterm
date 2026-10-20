@@ -15,6 +15,16 @@ extension Decimal {
         formatted(.currency(code: AppConfiguration.currencyCode))
     }
 
+    /// The amount as a Double, for charts.
+    var doubleValue: Double {
+        NSDecimalNumber(decimal: self).doubleValue
+    }
+
+    /// A short amount for chart axes, e.g. "₱25K".
+    var compactCurrencyText: String {
+        "₱" + doubleValue.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)))
+    }
+
     /// The amount rendered as a percentage, e.g. "12%".
     var percentText: String {
         formatted(.percent.precision(.fractionLength(0...2)))
